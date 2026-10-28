@@ -187,10 +187,8 @@ internal class OtlpHttpSpanExporterTest {
 
     @Test
     fun testFactoryWithCustomEngineExports() = runTest {
-        val request = CompletableDeferred<HttpRequestData>()
         val mockServer = MockEngine {
             val response = respond(content = ByteReadChannel(""), status = HttpStatusCode.OK)
-            request.complete(it)
             response
         }
         val factoryExporter = fakeConfig().otlpHttpSpanExporter {
@@ -200,7 +198,8 @@ internal class OtlpHttpSpanExporterTest {
         try {
             val code = factoryExporter.export(spans)
             assertEquals(OperationResultCode.Success, code)
-            request.await()
+            // export() queues telemetry; shutdown() waits for the background export to finish.
+            assertEquals(OperationResultCode.Success, factoryExporter.shutdown())
             assertEquals(1, mockServer.requestHistory.size)
         } finally {
             withContext(NonCancellable) {
