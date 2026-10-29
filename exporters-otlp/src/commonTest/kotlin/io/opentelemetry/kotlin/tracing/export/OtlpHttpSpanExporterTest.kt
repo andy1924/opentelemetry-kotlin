@@ -198,11 +198,12 @@ internal class OtlpHttpSpanExporterTest {
         try {
             val code = factoryExporter.export(spans)
             assertEquals(OperationResultCode.Success, code)
-            // export() queues telemetry; shutdown() waits for the background export to finish.
-            assertEquals(OperationResultCode.Success, factoryExporter.shutdown())
+            // Use real time while waiting for workers on the I/O dispatcher to drain the queue.
+            val shutdownCode = withContext(ioDispatcher) { factoryExporter.shutdown() }
+            assertEquals(OperationResultCode.Success, shutdownCode)
             assertEquals(1, mockServer.requestHistory.size)
         } finally {
-            withContext(NonCancellable) {
+            withContext(NonCancellable + ioDispatcher) {
                 factoryExporter.shutdown()
                 HttpClientRegistry.clear()
                 mockServer.close()
